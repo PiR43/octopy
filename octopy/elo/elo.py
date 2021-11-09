@@ -1,7 +1,7 @@
 from jax import nn
 from jax import jit, grad
 import jax.numpy as jnp
-from tqdm import notebook
+from tqdm import notebook, tqdm
 import jax.ops as jop
 from jax import lax
 import numpy as np
@@ -31,6 +31,7 @@ class EloRatingNet:
         return dict(
             beta=1.0,
             gamma=0.2,
+            homeAdv=0.0,
             lr=0.1,
             init=jnp.array([1000.0 for k in range(self.n_teams)]),
         )
@@ -169,7 +170,7 @@ class EloRatingNet:
         min_loss = 1e5
         train_data = dataset.get_train_split()
         full_data = dataset.get_dataset()
-        for i in notebook.tqdm(range(max_step)):
+        for i in tqdm(range(max_step)):
             grads = jit_nll_grad_fn(params, train_data)
             for key, val in params.items():
                 if isinstance(params[key], list):
