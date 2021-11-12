@@ -32,6 +32,7 @@ class EloRatingNet:
             beta=1.0,
             gamma=0.2,
             homeAdv=0.0,
+            winCoef=0.5,
             lr=0.1,
             init=jnp.array([1000.0 for k in range(self.n_teams)]),
         )
@@ -57,14 +58,14 @@ class EloRatingNet:
             delta_B_d = -delta_A_d
 
             delta_A_win = lax.cond(
-                winner == 0.0, lambda x: x * (1 - pA), lambda x: 0.0, operand
+                winner == 0.0, lambda x: x * (params['winCoef']+(pB - pA)), lambda x: 0.0, operand
             )
             delta_B_lose = lax.cond(
                 winner == 0.0, lambda x: x * (0 - pB), lambda x: 0.0, operand
             )
 
             delta_A_lose = lax.cond(
-                winner == 2.0, lambda x: x * (0 - pA), lambda x: 0.0, operand
+                winner == 2.0, lambda x: x * (-1 * params['winCoef'] + (pB - pA)), lambda x: 0.0, operand
             )
             delta_B_win = lax.cond(
                 winner == 2.0, lambda x: x * (1 - pB), lambda x: 0.0, operand
@@ -73,6 +74,8 @@ class EloRatingNet:
             delta_A = delta_A_d + delta_A_win + delta_A_lose
             delta_B = delta_B_d + delta_B_lose + delta_B_win
 
+            
+            delta_B = - delta_A
             rating = jop.index_add(rating, teamA_idx, jnp.tanh(delta_A))
             rating = jop.index_add(rating, teamB_idx, jnp.tanh(delta_B))
             return rating
