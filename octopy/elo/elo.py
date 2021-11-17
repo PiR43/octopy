@@ -34,7 +34,7 @@ class EloRatingNet:
             homeAdv=0.0,
             winCoef=0.5,
             lr=0.1,
-            init=jnp.array([1000.0 for k in range(self.n_teams)]),
+            init=jnp.array([0.0 for k in range(self.n_teams)]),
         )
 
     def get_train_function(self, keep_rating=True):

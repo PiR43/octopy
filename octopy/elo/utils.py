@@ -11,6 +11,7 @@ def predict_proba(params, teamA_rating, teamB_rating, has_tie):
     pA = jnp.clip(nn.sigmoid(dr - gamma), __EPS__, 1 - __EPS__)
     pB = jnp.clip(nn.sigmoid(-dr - gamma), __EPS__, 1 - __EPS__)
     pD = nn.relu(1.0 - pA - pB) * has_tie
+    pD = jnp.maximum(pD, __EPS__)
     s = pA + pB + pD
     return [jnp.array(x, float) for x in [pA / s, pD / s, pB / s]]
 
