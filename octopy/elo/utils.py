@@ -16,14 +16,17 @@ def predict_proba(params, teamA_rating, teamB_rating, has_tie):
     return [jnp.array(x, float) for x in [pA / s, pD / s, pB / s]]
 
 @jit
-def get_log_loss(scoreA, scoreB, pA, pB, pD=0):
+def get_log_loss(scoreA, scoreB, rA, rB, params):
     '''return the log loss given the score and probabilities.'''
-
+    #return jnp.maximum(jnp.abs(scoreA - jnp.maximum(__EPS__,params["homeAdv"]) -scoreB - jnp.maximum(__EPS__, params['winCoef'])* (rB -rA)) , __EPS__)*-1
+    return jnp.maximum(jnp.abs(scoreA - jnp.maximum(__EPS__,params["homeAdv"]) -scoreB -  (rB -rA)) , __EPS__)*-1
+    """
     return (
         (scoreA > scoreB) * jnp.log(pA)
         + (scoreA == scoreB) * jnp.log(pD)
         + (scoreA < scoreB) * jnp.log(pB)
     )
+    """
 
 
 @jit

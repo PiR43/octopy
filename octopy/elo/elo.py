@@ -1,12 +1,17 @@
 from jax import nn
-from jax import jit, grad
+from jax import jit, grad, vmap
 import jax.numpy as jnp
 from tqdm import notebook, tqdm
 import jax.ops as jop
 from jax import lax
 import numpy as np
 from ..elo.utils import predict_proba, get_log_loss, get_winner
+from jax import random
+from jax.experimental import stax
+from jax.experimental.stax import Dense, Tanh
+from jax.nn.initializers import glorot_normal, normal
 
+key = random.PRNGKey(0)
 
 class EloRatingNet:
     '''
@@ -25,25 +30,33 @@ class EloRatingNet:
     def __init__(self, n_teams, has_tie=True):
         self.has_tie = has_tie
         self.n_teams = n_teams
+        Dense64 = lambda x: Dense(x, W_init=glorot_normal(dtype='float64'), 
+                                         b_init=normal(dtype='float64'))
+
+        nn = stax.serial(
+                Dense64(4), Tanh, Dense64(1)
+                    )
+
 
     def init_params(self):
         '''Set of model initial parameters.'''
         return dict(
             beta=1.0,
             gamma=0.2,
-            homeAdv=0.0,
+            homeAdv=4.85,
             winCoef=0.5,
             lr=0.1,
             init=jnp.array([0.0 for k in range(self.n_teams)]),
         )
 
+
     def get_train_function(self, keep_rating=True):
         @jit
         def update_ratings(
-                params, teamA_rating, teamB_rating, teamA_idx, teamB_idx, winner, rating
+                params, teamA_rating, teamB_rating, teamA_idx, teamB_idx, score1, score2, rating
         ):
             '''Update rating step'''
-
+            """
             pA, _, pB = predict_proba(
                 params, teamA_rating, teamB_rating, self.has_tie
             )
@@ -73,7 +86,8 @@ class EloRatingNet:
 
             delta_A = delta_A_d + delta_A_win + delta_A_lose
             delta_B = delta_B_d + delta_B_lose + delta_B_win
-
+            """
+            delta_A = (teamB_rating - teamA_rating) + (score1 - params['homeAdv'] - score2) 
             
             delta_B = - delta_A
             rating = jop.index_add(rating, teamA_idx, jnp.tanh(delta_A))
@@ -90,11 +104,11 @@ class EloRatingNet:
             score1, score2 = dataset["scores"][0], dataset["scores"][1]
 
             p1, pt, p2 = predict_proba(params, rating[teamA_idx], rating[teamB_idx], self.has_tie)
-            loss = get_log_loss(score1, score2, p1, p2, pt)
+            loss = get_log_loss(score1, score2, rating[teamA_idx], rating[teamB_idx],params)
 
             winner = get_winner(score1, score2)
             carry["rating"] = update_ratings(
-                params, rating[teamA_idx], rating[teamB_idx], teamA_idx, teamB_idx, winner, rating
+                params, rating[teamA_idx], rating[teamB_idx], teamA_idx, teamB_idx, score1, score2, rating
             )
 
             if keep_rating:
@@ -176,6 +190,7 @@ class EloRatingNet:
         for i in tqdm(range(max_step)):
             grads = jit_nll_grad_fn(params, train_data)
             for key, val in params.items():
+                print("grad",key,grads[key],grads[key]*learning_rate)
                 if isinstance(params[key], list):
                     params[key] = jnp.array(
                         [
@@ -197,7 +212,7 @@ class EloRatingNet:
                 min_loss = valid_loss
                 if i % verbose == 0:
                     print(
-                        f"train_loss: {train_loss:.4f}, valid_loss: {valid_loss:.4f}, test_loss: {test_loss:.4f}"
+                            f"train_loss: {train_loss:.4f}, valid_loss: {valid_loss:.4f}, test_loss: {test_loss:.4f}, homeAdv: {params['homeAdv']} , winCoef: {params['winCoef']}"
                     )
                 stopping = 0
                 best_params = params.copy()
